@@ -1,14 +1,13 @@
 <?php
 namespace CakeExcel\View;
 
-use Cake\Core\Exception\Exception;
 use Cake\Event\EventManager;
-use Cake\Network\Request;
-use Cake\Network\Response;
-use Cake\Utility\Inflector;
+use Cake\Http\Response;
+use Cake\Http\ServerRequest;
+use Cake\Utility\Text;
 use Cake\View\View;
-use PHPExcel;
-use PHPExcel_IOFactory;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 /**
  * @package  Cake.View
@@ -32,9 +31,9 @@ class ExcelView extends View
 
     /**
      * PHPExcel instance
-     * @var PhpExcel
+     * @var Spreadsheet
      */
-    public $PhpExcel = null;
+    public $Spreadsheet = null;
 
     /**
      * Constructor
@@ -45,7 +44,7 @@ class ExcelView extends View
      * @param array $viewOptions An array of view options
      */
     public function __construct(
-        Request $request = null,
+        ServerRequest $request = null,
         Response $response = null,
         EventManager $eventManager = null,
         array $viewOptions = []
@@ -59,34 +58,44 @@ class ExcelView extends View
         if (isset($viewOptions['name']) && $viewOptions['name'] == 'Error') {
             $this->subDir = null;
             $this->layoutPath = null;
-            $response->type('html');
+            $this->response = $this->response->withType('html');
 
             return;
         }
 
         if ($response && $response instanceof Response) {
-            $response->type('xlsx');
+            $this->response = $this->response->withType('xlsx');
         }
 
-        $this->PhpExcel = new PHPExcel();
+        $this->Spreadsheet = new Spreadsheet();
+    }
+
+    public function __get($name)
+    {
+        if ($name === 'PhpExcel') {
+            return $this->Spreadsheet;
+        }
+
+        return parent::__get($name);
     }
 
     /**
      * Render method
      *
-     * @param string $view The view being rendered.
-     * @param string $layout The layout being rendered.
-     * @return string The rendered view.
+     * @param string|false|null $view Name of view file to use
+     * @param string|null $layout Layout to use.
+     * @return string|null Rendered content or null if content already rendered and returned earlier.
+     * @throws \PhpOffice\PhpSpreadsheet\Writer\Exception
      */
     public function render($view = null, $layout = null)
     {
         $content = parent::render($view, $layout);
-        if ($this->response->type() == 'text/html') {
+        if ($this->response->getType() == 'text/html') {
             return $content;
         }
 
         $this->Blocks->set('content', $this->output());
-        $this->response->download($this->getFilename());
+        $this->response = $this->response->withDownload($this->getFilename());
 
         return $this->Blocks->get('content');
     }
@@ -95,17 +104,13 @@ class ExcelView extends View
      * Generates the binary excel data
      *
      * @return string
-     * @throws CakeException If the excel writer does not exist
+     * @throws \PhpOffice\PhpSpreadsheet\Writer\Exception If the excel writer does not exist
      */
     protected function output()
     {
         ob_start();
 
-        $writer = PHPExcel_IOFactory::createWriter($this->PhpExcel, 'Excel2007');
-
-        if (!isset($writer)) {
-            throw new Exception('Excel writer not found');
-        }
+        $writer = new Xlsx($this->Spreadsheet);
 
         $writer->setPreCalculateFormulas(false);
         $writer->setIncludeCharts(true);
@@ -127,6 +132,6 @@ class ExcelView extends View
             return $this->viewVars['_filename'] . '.xlsx';
         }
 
-        return Inflector::slug(str_replace('.xlsx', '', $this->request->url)) . '.xlsx';
+        return Text::slug(str_replace('.xlsx', '', $this->request->getRequestTarget())) . '.xlsx';
     }
 }
