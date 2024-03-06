@@ -1,5 +1,5 @@
 {
-    "name": "andre-artus/cake-excel",
+    "name": "andre-artus/cakeexcel",
     "type": "cakephp-plugin",
     "description": "CakePHP excel generator",
     "keywords": [
